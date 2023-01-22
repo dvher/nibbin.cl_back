@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	gomail "gopkg.in/mail.v2"
@@ -87,6 +88,13 @@ func login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Email sent",
 	})
+
+	timer := time.NewTimer(3 * time.Minute)
+
+	go func() {
+		<-timer.C
+		delete(mailToOTP, to)
+	}()
 }
 
 func verifyOTP(c *gin.Context) {
