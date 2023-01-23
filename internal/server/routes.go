@@ -13,8 +13,9 @@ import (
 	"text/template"
 	"time"
 
+	db "github.com/dvher/nibbin.cl_back/internal/database"
+	"github.com/dvher/nibbin.cl_back/pkg/argon2"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/argon2"
 	gomail "gopkg.in/mail.v2"
 )
 
@@ -26,8 +27,6 @@ type OTPData struct {
 var mailToOTP = make(map[string]OTPData)
 
 func ping(c *gin.Context) {
-	argon2.IDKey([]byte("password"), []byte("salt"), 1, 64*1024, 4, 32)
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "pong",
 	})
@@ -108,6 +107,169 @@ func login(c *gin.Context) {
 		<-timer.C
 		delete(mailToOTP, to)
 	}()
+}
+
+func register(c *gin.Context) {
+	nombre := c.PostForm("nombre")
+	apellido := c.PostForm("apellido")
+	email := c.PostForm("email")
+	usuario := c.PostForm("usuario")
+	puntos := 0
+	direccion := c.PostForm("direccion")
+	telefono := c.PostForm("telefono")
+
+	if nombre == "" || apellido == "" || email == "" || usuario == "" || direccion == "" || telefono == "" {
+		log.Println("Missing data")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Missing data",
+		})
+		return
+	}
+
+	if !validateEmail(email) {
+		log.Println("Invalid email")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid email",
+		})
+		return
+	}
+
+	stmt, err := db.DB.Prepare(
+		"INSERT INTO Usuario(nombre, apellido, email, usuario, puntos, direccion, telefono) VALUES(?, ?, ?, ?, ?, ?, ?);",
+	)
+
+	if err != nil {
+		log.Println("Error preparing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(nombre, apellido, email, usuario, puntos, direccion, telefono)
+
+	if err != nil {
+		log.Println("Error inserting user")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error inserting user",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User created",
+	})
+}
+
+func loginAdmin(c *gin.Context) {
+	usuario := c.PostForm("usuario")
+	password := c.PostForm("password")
+
+	if usuario == "" || password == "" {
+		log.Println("Missing data")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Missing data",
+		})
+		return
+	}
+
+	stmt, err := db.DB.Prepare(
+		"SELECT Administrador.id, idUsuario, contrasena FROM Administrador, Usuario WHERE Usuario.usuario = ?;",
+	)
+
+	if err != nil {
+		log.Println("Error preparing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	var id int
+	var idUsuario int
+	var hashedPassword string
+
+	err = stmt.QueryRow(usuario).Scan(&id, &idUsuario, &hashedPassword)
+
+	if err != nil {
+		log.Println("Error querying user")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error querying user",
+		})
+		return
+	}
+
+	err = stmt.Close()
+
+	if err != nil {
+		log.Println("Error closing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error closing statement",
+		})
+		return
+	}
+
+	stmt, err = db.DB.Prepare("SELECT email FROM Usuario WHERE id = ?;")
+
+	if err != nil {
+		log.Println("Error preparing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	var email string
+
+	err = stmt.QueryRow(idUsuario).Scan(&email)
+
+	if err != nil {
+		log.Println("Error querying user")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error querying user",
+		})
+		return
+	}
+
+	isValid, err := argon2.ComparePasswordHash(hashedPassword, password)
+
+	if err != nil {
+		log.Println("Error comparing password")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error comparing password",
+		})
+		return
+	}
+
+	if !isValid {
+		log.Println("Invalid password")
+
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "Invalid password",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
+	})
 }
 
 func verifyOTP(c *gin.Context) {

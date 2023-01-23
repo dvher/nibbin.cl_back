@@ -13,6 +13,8 @@ func New() *gin.Engine {
 	r.GET("/", ping)
 	r.POST("/login", login)
 	r.POST("/verify", verifyOTP)
+	r.POST("/register", register)
+	r.POST("/admin/login", loginAdmin)
 
 	log.Println("Server started")
 
