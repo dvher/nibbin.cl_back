@@ -7,12 +7,14 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"net/mail"
 	"os"
 	"strconv"
 	"text/template"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/argon2"
 	gomail "gopkg.in/mail.v2"
 )
 
@@ -24,6 +26,8 @@ type OTPData struct {
 var mailToOTP = make(map[string]OTPData)
 
 func ping(c *gin.Context) {
+	argon2.IDKey([]byte("password"), []byte("salt"), 1, 64*1024, 4, 32)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "pong",
 	})
@@ -38,6 +42,15 @@ func login(c *gin.Context) {
 
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Email not provided",
+		})
+		return
+	}
+
+	if !validateEmail(to) {
+		log.Println("Invalid email")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid email",
 		})
 		return
 	}
@@ -219,4 +232,10 @@ func parseTemplate(templateName string, data any) (string, error) {
 	}
 
 	return body.String(), nil
+}
+
+func validateEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+
+	return err == nil
 }
