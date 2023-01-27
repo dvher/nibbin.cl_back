@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/tls"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -20,8 +21,9 @@ import (
 )
 
 type OTPData struct {
-	tries int
-	code  *big.Int
+	tries  int
+	code   *big.Int
+	action string
 }
 
 var mailToOTP = make(map[string]OTPData)
@@ -70,8 +72,9 @@ func login(c *gin.Context) {
 	delete(mailToOTP, to)
 
 	mailToOTP[to] = OTPData{
-		tries: 0,
-		code:  num,
+		tries:  0,
+		code:   num,
+		action: "login",
 	}
 
 	body, err := parseTemplate("verification.html", struct {
@@ -267,6 +270,51 @@ func loginAdmin(c *gin.Context) {
 		return
 	}
 
+	num, err := rand.Int(rand.Reader, big.NewInt(899999))
+
+	if err != nil {
+		log.Println("Error generating OTP")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error generating OTP",
+		})
+		return
+	}
+
+	num.Add(num, big.NewInt(100000))
+
+	mailToOTP[email] = OTPData{
+		tries:  0,
+		code:   num,
+		action: "loginAdmin",
+	}
+
+	body, err := parseTemplate("verification.html", struct {
+		Code *big.Int
+	}{
+		Code: num,
+	})
+
+	if err != nil {
+		log.Println("Error parsing template")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error parsing template",
+		})
+		return
+	}
+
+	err = sendEmail([]string{email}, "Verification code", body)
+
+	if err != nil {
+		log.Println("Error sending mail")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error sending mail",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
 	})
@@ -337,10 +385,12 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
+	str := fmt.Sprintf("%s verified", mailToOTP[email].action)
+
 	delete(mailToOTP, email)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "OTP verified",
+		"message": str,
 	})
 }
 

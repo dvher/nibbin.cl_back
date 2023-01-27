@@ -33,20 +33,11 @@ type Argon2Hash struct {
 	Config *Config
 }
 
-var DefaultConfig *Config = &Config{
-	Memory:     6 * 1024,
-	Time:       3,
-	Threads:    2,
-	SaltLength: 16,
-	KeyLength:  32,
-	Type:       Argon2id,
-}
-
 var (
-	ErrInvalidType    = errors.New("Invalid argon2 type")
-	ErrInvalidHash    = errors.New("Invalid hash")
-	ErrInvalidVersion = errors.New("Invalid version")
-	ErrInvalidParams  = errors.New("Invalid parameters")
+	ErrInvalidType    = errors.New("invalid argon2 type")
+	ErrInvalidHash    = errors.New("invalid hash")
+	ErrInvalidVersion = errors.New("invalid version")
+	ErrInvalidParams  = errors.New("invalid parameters")
 )
 
 func GenerateHash(password []byte, config *Config) (*Argon2Hash, error) {
@@ -215,4 +206,15 @@ func (hash *Argon2Hash) String() (encodedHash string) {
 	)
 
 	return
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		Memory:     6 * 1024,
+		Time:       3,
+		Threads:    2,
+		SaltLength: 16,
+		KeyLength:  32,
+		Type:       Argon2id,
+	}
 }
