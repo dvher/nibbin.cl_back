@@ -16,6 +16,7 @@ import (
 
 	db "github.com/dvher/nibbin.cl_back/internal/database"
 	"github.com/dvher/nibbin.cl_back/pkg/argon2"
+	"github.com/dvher/nibbin.cl_back/pkg/models"
 	"github.com/gin-gonic/gin"
 	gomail "gopkg.in/mail.v2"
 )
@@ -36,7 +37,18 @@ func ping(c *gin.Context) {
 
 func login(c *gin.Context) {
 
-	to := c.PostForm("email")
+	var data models.LoginRequest
+
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	to := data.Email
 
 	if to == "" {
 		log.Println("Email not provided")
@@ -113,15 +125,21 @@ func login(c *gin.Context) {
 }
 
 func register(c *gin.Context) {
-	nombre := c.PostForm("nombre")
-	apellido := c.PostForm("apellido")
-	email := c.PostForm("email")
-	usuario := c.PostForm("usuario")
 	puntos := 0
-	direccion := c.PostForm("direccion")
-	telefono := c.PostForm("telefono")
 
-	if nombre == "" || apellido == "" || email == "" || usuario == "" || direccion == "" || telefono == "" {
+	var data models.RegisterRequest
+
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	if data.Nombre == "" || data.Apellido == "" || data.Email == "" || data.User == "" || data.Direccion == "" ||
+		data.Telefono == "" {
 		log.Println("Missing data")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -130,7 +148,7 @@ func register(c *gin.Context) {
 		return
 	}
 
-	if !validateEmail(email) {
+	if !validateEmail(data.Email) {
 		log.Println("Invalid email")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -154,7 +172,7 @@ func register(c *gin.Context) {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(nombre, apellido, email, usuario, puntos, direccion, telefono)
+	_, err = stmt.Exec(data.Nombre, data.Apellido, data.Email, data.User, puntos, data.Direccion, data.Telefono)
 
 	if err != nil {
 		log.Println("Error inserting user")
@@ -171,10 +189,18 @@ func register(c *gin.Context) {
 }
 
 func loginAdmin(c *gin.Context) {
-	usuario := c.PostForm("usuario")
-	password := c.PostForm("password")
+	var data models.LoginAdminRequest
 
-	if usuario == "" || password == "" {
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	if data.User == "" || data.Password == "" {
 		log.Println("Missing data")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -202,7 +228,7 @@ func loginAdmin(c *gin.Context) {
 	var idUsuario int
 	var hashedPassword string
 
-	err = stmt.QueryRow(usuario).Scan(&id, &idUsuario, &hashedPassword)
+	err = stmt.QueryRow(data.User).Scan(&id, &idUsuario, &hashedPassword)
 
 	if err != nil {
 		log.Println("Error querying user")
@@ -250,7 +276,7 @@ func loginAdmin(c *gin.Context) {
 		return
 	}
 
-	isValid, err := argon2.ComparePasswordHash(hashedPassword, password)
+	isValid, err := argon2.ComparePasswordHash(data.Password, hashedPassword)
 
 	if err != nil {
 		log.Println("Error comparing password")
