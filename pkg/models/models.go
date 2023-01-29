@@ -5,7 +5,8 @@ type LoginRequest struct {
 }
 
 type OTPRequest struct {
-	OTP int64 `json:"otp" binding:"required"`
+	OTP   string `json:"otp" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
 }
 
 type RegisterRequest struct {
@@ -19,5 +20,10 @@ type RegisterRequest struct {
 
 type LoginAdminRequest struct {
 	User     string `json:"user"     binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RegisterAdminRequest struct {
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }

@@ -26,6 +26,7 @@ func New() *gin.Engine {
 	r.POST("/verify", verifyOTP)
 	r.POST("/register", register)
 	r.POST("/admin/login", loginAdmin)
+	r.POST("/admin/register", registerAdmin)
 
 	log.Println("Server started")
 

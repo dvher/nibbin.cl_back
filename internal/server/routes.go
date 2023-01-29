@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -21,10 +22,14 @@ import (
 	gomail "gopkg.in/mail.v2"
 )
 
+/*
+TODO: Add jwt
+*/
+
 type OTPData struct {
-	tries  int
-	code   *big.Int
-	action string
+	Tries  int
+	Code   *big.Int
+	Action string
 }
 
 var mailToOTP = make(map[string]OTPData)
@@ -68,44 +73,43 @@ func login(c *gin.Context) {
 		return
 	}
 
-	num, err := rand.Int(rand.Reader, big.NewInt(899999))
+	stmt, err := db.DB.Prepare("SELECT COUNT(id) FROM Usuario WHERE email = ?")
 
 	if err != nil {
-		log.Println("Error generating OTP")
+		log.Println("Error preparing statement")
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error generating OTP",
+			"message": "Error preparing statement",
 		})
 		return
 	}
 
-	num.Add(num, big.NewInt(100000))
+	defer stmt.Close()
 
-	delete(mailToOTP, to)
+	var count int
 
-	mailToOTP[to] = OTPData{
-		tries:  0,
-		code:   num,
-		action: "login",
-	}
-
-	body, err := parseTemplate("verification.html", struct {
-		Code int64
-	}{
-		Code: num.Int64(),
-	},
-	)
+	err = stmt.QueryRow(to).Scan(&count)
 
 	if err != nil {
+		log.Println("Error querying database")
+
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error parsing template",
+			"message": "Error querying database",
 		})
 		return
 	}
 
-	err = sendEmail([]string{to}, "Código de verificación", body)
+	action := "login "
+
+	if count == 0 {
+		action += "unregistered"
+	}
+
+	err = sendOTPEmail([]string{to}, action)
 
 	if err != nil {
+		log.Println("Error sending email")
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Error sending email",
 		})
@@ -116,12 +120,6 @@ func login(c *gin.Context) {
 		"message": "Email sent",
 	})
 
-	timer := time.NewTimer(3 * time.Minute)
-
-	go func() {
-		<-timer.C
-		delete(mailToOTP, to)
-	}()
 }
 
 func register(c *gin.Context) {
@@ -176,6 +174,7 @@ func register(c *gin.Context) {
 
 	if err != nil {
 		log.Println("Error inserting user")
+		log.Println(err)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Error inserting user",
@@ -296,47 +295,13 @@ func loginAdmin(c *gin.Context) {
 		return
 	}
 
-	num, err := rand.Int(rand.Reader, big.NewInt(899999))
+	err = sendOTPEmail([]string{email}, "loginAdmin")
 
 	if err != nil {
-		log.Println("Error generating OTP")
+		log.Println("Error sending email")
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error generating OTP",
-		})
-		return
-	}
-
-	num.Add(num, big.NewInt(100000))
-
-	mailToOTP[email] = OTPData{
-		tries:  0,
-		code:   num,
-		action: "loginAdmin",
-	}
-
-	body, err := parseTemplate("verification.html", struct {
-		Code *big.Int
-	}{
-		Code: num,
-	})
-
-	if err != nil {
-		log.Println("Error parsing template")
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error parsing template",
-		})
-		return
-	}
-
-	err = sendEmail([]string{email}, "Verification code", body)
-
-	if err != nil {
-		log.Println("Error sending mail")
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error sending mail",
+			"message": "Error sending email",
 		})
 		return
 	}
@@ -346,25 +311,128 @@ func loginAdmin(c *gin.Context) {
 	})
 }
 
-func verifyOTP(c *gin.Context) {
-	email := c.PostForm("email")
-	otp := c.PostForm("otp")
-	code, err := strconv.Atoi(otp)
+func registerAdmin(c *gin.Context) {
+	var data models.RegisterAdminRequest
 
-	if x, ok := mailToOTP[email]; ok {
-		if x.tries >= 3 {
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json", err)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	if data.Email == "" {
+		log.Println("Email not provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Email not provided",
+		})
+		return
+	}
+
+	if !validateEmail(data.Email) {
+		log.Println("Invalid email")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid email",
+		})
+		return
+	}
+
+	if data.Password == "" {
+		log.Println("Password not provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Password not provided",
+		})
+		return
+	}
+
+	stmt, err := db.DB.Prepare("SELECT id FROM Usuario WHERE email = ?;")
+
+	if err != nil {
+		log.Println("Error preparing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	var id int
+
+	err = stmt.QueryRow(data.Email).Scan(&id)
+
+	if err != nil {
+		log.Println("Error querying user")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error querying user",
+		})
+		return
+	}
+
+	hashedPassword, err := argon2.GenerateHash([]byte(data.Password), argon2.DefaultConfig())
+
+	if err != nil {
+		log.Println("Error hashing password")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error hashing password",
+		})
+		return
+	}
+
+	sendOTPEmail([]string{data.Email}, "registerAdmin "+data.Email+" "+hashedPassword.String()+" "+strconv.Itoa(id))
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Registration successful",
+	})
+
+}
+
+func verifyOTP(c *gin.Context) {
+	var data models.OTPRequest
+
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json", err)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	code, err := strconv.Atoi(data.OTP)
+
+	if err != nil {
+		log.Println("Error parsing OTP")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error parsing OTP",
+		})
+		return
+	}
+
+	if x, ok := mailToOTP[data.Email]; ok {
+		if x.Tries >= 3 {
 			log.Println("Too many tries")
 
-			delete(mailToOTP, email)
+			delete(mailToOTP, data.Email)
 
 			c.JSON(http.StatusBadRequest, gin.H{
 				"message": "Too many tries",
 			})
 			return
 		}
-		mailToOTP[email] = OTPData{
-			tries: x.tries + 1,
-			code:  x.code,
+		mailToOTP[data.Email] = OTPData{
+			Tries:  x.Tries + 1,
+			Code:   x.Code,
+			Action: x.Action,
 		}
 	} else {
 		log.Println("Email not found")
@@ -375,16 +443,7 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
-	if err != nil {
-		log.Println("Error converting otp to int")
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error converting otp to int",
-		})
-		return
-	}
-
-	if email == "" {
+	if data.Email == "" {
 		log.Println("Email not provided")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -393,7 +452,7 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
-	if otp == "" {
+	if data.OTP == "" {
 		log.Println("OTP not provided")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -402,7 +461,7 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
-	if big.NewInt(int64(code)).Cmp(mailToOTP[email].code) != 0 {
+	if big.NewInt(int64(code)).Cmp(mailToOTP[data.Email].Code) != 0 {
 		log.Println("Invalid OTP")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -411,9 +470,53 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
-	str := fmt.Sprintf("%s verified", mailToOTP[email].action)
+	if mailToOTP[data.Email].Action == "registerAdmin" {
+		s := strings.Split(mailToOTP[data.Email].Action, " ")
 
-	delete(mailToOTP, email)
+		if len(s) != 4 {
+			log.Println("Invalid action")
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "Invalid action",
+			})
+			return
+		}
+
+		password, id := s[2], s[3]
+
+		stmt, err := db.DB.Prepare("INSERT INTO Administrador (idUsuario, contrasena) VALUES (?, ?);")
+
+		if err != nil {
+			log.Println("Error preparing statement")
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error preparing statement",
+			})
+			return
+		}
+
+		defer stmt.Close()
+
+		_, err = stmt.Exec(id, password)
+
+		if err != nil {
+			log.Println("Error inserting admin")
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error inserting admin",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Admin registered",
+		})
+		return
+	}
+
+	str := fmt.Sprintf("%s verified", mailToOTP[data.Email].Action)
+
+	delete(mailToOTP, data.Email)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": str,
@@ -448,6 +551,74 @@ func sendEmail(to []string, subject, body string) error {
 		log.Println("Error sending email")
 		return err
 	}
+
+	return nil
+}
+
+func sendOTPEmail(to []string, action string) error {
+
+	code, err := rand.Int(rand.Reader, big.NewInt(899999))
+
+	if err != nil {
+		return err
+	}
+
+	code.Add(code, big.NewInt(100000))
+
+	mailToOTP[to[0]] = OTPData{
+		Tries:  0,
+		Code:   code,
+		Action: action,
+	}
+
+	if strings.HasPrefix(action, "registerAdmin") {
+
+		t, err := parseTemplate("register.html", struct {
+			Code  *big.Int
+			Email string
+		}{
+			Code:  code,
+			Email: to[0],
+		})
+
+		if err != nil {
+			return err
+		}
+
+		admin_email := os.Getenv("ADMIN_EMAIL")
+
+		err = sendEmail([]string{admin_email}, "Registrar administrador", t)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+
+	}
+
+	t, err := parseTemplate("verification.html", struct {
+		Code *big.Int
+	}{
+		Code: code,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = sendEmail(to, "Código de verificación", t)
+
+	if err != nil {
+		return err
+	}
+
+	timer := time.NewTimer(3 * time.Minute)
+
+	go func() {
+		<-timer.C
+		delete(mailToOTP, to[0])
+	}()
 
 	return nil
 }
