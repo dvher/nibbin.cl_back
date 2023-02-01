@@ -18,12 +18,13 @@ import (
 	db "github.com/dvher/nibbin.cl_back/internal/database"
 	"github.com/dvher/nibbin.cl_back/pkg/argon2"
 	"github.com/dvher/nibbin.cl_back/pkg/models"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	gomail "gopkg.in/mail.v2"
 )
 
 /*
-TODO: Add jwt
+TODO: Add sessions
 */
 
 type OTPData struct {
@@ -33,6 +34,7 @@ type OTPData struct {
 }
 
 var mailToOTP = make(map[string]OTPData)
+var mailToChan = make(map[string]chan any)
 
 func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
@@ -73,10 +75,10 @@ func login(c *gin.Context) {
 		return
 	}
 
-	stmt, err := db.DB.Prepare("SELECT COUNT(id) FROM Usuario WHERE email = ?")
+	stmt, err := db.DB.Prepare("SELECT usuario FROM Usuario WHERE email = ?")
 
 	if err != nil {
-		log.Println("Error preparing statement")
+		log.Println("Error preparing statement", err)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Error preparing statement",
@@ -86,12 +88,12 @@ func login(c *gin.Context) {
 
 	defer stmt.Close()
 
-	var count int
+	var usuario string
 
-	err = stmt.QueryRow(to).Scan(&count)
+	rows, err := stmt.Query(to)
 
 	if err != nil {
-		log.Println("Error querying database")
+		log.Println("Error querying database", err)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Error querying database",
@@ -99,10 +101,27 @@ func login(c *gin.Context) {
 		return
 	}
 
+	defer rows.Close()
+
+	if rows.Next() {
+		err = rows.Scan(&usuario)
+
+		if err != nil {
+			log.Println("Error scanning rows", err)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error scanning rows",
+			})
+			return
+		}
+	}
+
 	action := "login "
 
-	if count == 0 {
+	if usuario == "" {
 		action += "unregistered"
+	} else {
+		action += usuario
 	}
 
 	err = sendOTPEmail([]string{to}, action)
@@ -123,6 +142,9 @@ func login(c *gin.Context) {
 }
 
 func register(c *gin.Context) {
+
+	sess := sessions.Default(c)
+
 	puntos := 0
 
 	var data models.RegisterRequest
@@ -182,6 +204,10 @@ func register(c *gin.Context) {
 		return
 	}
 
+	sess.Set("user", data.User)
+	sess.Set("email", data.Email)
+	sess.Save()
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User created",
 	})
@@ -209,7 +235,7 @@ func loginAdmin(c *gin.Context) {
 	}
 
 	stmt, err := db.DB.Prepare(
-		"SELECT Administrador.id, idUsuario, contrasena FROM Administrador, Usuario WHERE Usuario.usuario = ?;",
+		"SELECT Administrador.id, idUsuario, contrasena, usuario FROM Administrador, Usuario WHERE Usuario.usuario = ?;",
 	)
 
 	if err != nil {
@@ -226,8 +252,9 @@ func loginAdmin(c *gin.Context) {
 	var id int
 	var idUsuario int
 	var hashedPassword string
+	var usuario string
 
-	err = stmt.QueryRow(data.User).Scan(&id, &idUsuario, &hashedPassword)
+	err = stmt.QueryRow(data.User).Scan(&id, &idUsuario, &hashedPassword, &usuario)
 
 	if err != nil {
 		log.Println("Error querying user")
@@ -295,7 +322,7 @@ func loginAdmin(c *gin.Context) {
 		return
 	}
 
-	err = sendOTPEmail([]string{email}, "loginAdmin")
+	err = sendOTPEmail([]string{email}, "loginAdmin "+usuario)
 
 	if err != nil {
 		log.Println("Error sending email")
@@ -396,6 +423,9 @@ func registerAdmin(c *gin.Context) {
 }
 
 func verifyOTP(c *gin.Context) {
+
+	sess := sessions.Default(c)
+
 	var data models.OTPRequest
 
 	if err := c.BindJSON(&data); err != nil {
@@ -470,7 +500,7 @@ func verifyOTP(c *gin.Context) {
 		return
 	}
 
-	if mailToOTP[data.Email].Action == "registerAdmin" {
+	if strings.HasPrefix(mailToOTP[data.Email].Action, "registerAdmin") {
 		s := strings.Split(mailToOTP[data.Email].Action, " ")
 
 		if len(s) != 4 {
@@ -516,10 +546,135 @@ func verifyOTP(c *gin.Context) {
 
 	str := fmt.Sprintf("%s verified", mailToOTP[data.Email].Action)
 
+	if strings.HasPrefix(mailToOTP[data.Email].Action, "login") {
+		s := strings.SplitN(mailToOTP[data.Email].Action, " ", 2)
+
+		if len(s) != 2 {
+			log.Println("Invalid action")
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "Invalid action",
+			})
+			return
+		}
+
+		if s[1] != "unregistered" {
+
+			user := s[1]
+
+			sess.Set("user", user)
+			sess.Set("email", data.Email)
+			if err := sess.Save(); err != nil {
+				log.Println("Error saving session", err)
+
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"message": "Error saving session",
+				})
+				return
+			}
+		}
+	}
+
 	delete(mailToOTP, data.Email)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": str,
+	})
+}
+
+func isLogged(c *gin.Context) {
+	sess := sessions.Default(c)
+
+	if sess.Get("user") == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged",
+		"user":    sess.Get("user"),
+	})
+}
+
+func logout(c *gin.Context) {
+	sess := sessions.Default(c)
+
+	sess.Clear()
+	if err := sess.Save(); err != nil {
+		log.Println("Error saving session", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error saving session",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged out",
+	})
+}
+
+func searchProducts(c *gin.Context) {
+
+	search := c.Query("q")
+
+	if search == "" {
+		log.Println("Search not provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Search not provided",
+		})
+		return
+	}
+
+	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;")
+
+	if err != nil {
+		log.Println("Error preparing statement")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query("%"+search+"%", "%"+search+"%")
+
+	if err != nil {
+		log.Println("Error querying products")
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error querying products",
+		})
+		return
+	}
+
+	defer rows.Close()
+
+	var products []models.Producto
+
+	for rows.Next() {
+		var product models.Producto
+
+		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento); err != nil {
+			log.Println("Error scanning products")
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error scanning products",
+			})
+			return
+		}
+
+		products = append(products, product)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Products found",
+		"products": products,
 	})
 }
 
@@ -616,8 +771,13 @@ func sendOTPEmail(to []string, action string) error {
 	timer := time.NewTimer(3 * time.Minute)
 
 	go func() {
-		<-timer.C
-		delete(mailToOTP, to[0])
+		select {
+		case <-timer.C:
+			delete(mailToOTP, to[0])
+			break
+		case <-mailToChan[to[0]]:
+			break
+		}
 	}()
 
 	return nil

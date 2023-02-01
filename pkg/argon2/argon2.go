@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -46,6 +47,10 @@ func GenerateHash(password []byte, config *Config) (*Argon2Hash, error) {
 		return nil, ErrInvalidParams
 	}
 
+	pepper := []byte(os.Getenv("SECRET_PEPPER"))
+
+	password = append(password, pepper...)
+
 	salt, err := GenerateSecureSalt(config.SaltLength)
 
 	if err != nil {
@@ -72,6 +77,10 @@ func GenerateHashWithSalt(password, salt []byte, config *Config) (*Argon2Hash, e
 	if config == nil {
 		return nil, ErrInvalidParams
 	}
+
+	pepper := []byte(os.Getenv("SECRET_PEPPER"))
+
+	password = append(password, pepper...)
 
 	var hash []byte
 

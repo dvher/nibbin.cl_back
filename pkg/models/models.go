@@ -27,3 +27,16 @@ type RegisterAdminRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
+
+type SearchRequest struct {
+	Search string `json:"search" binding:"required"`
+}
+
+type Producto struct {
+	ID          int    `json:"id"`
+	Nombre      string `json:"nombre"`
+	Descripcion string `json:"descripcion"`
+	Precio      int    `json:"precio"`
+	Descuento   int    `json:"descuento"`
+	Stock       int    `json:"stock"`
+}
