@@ -19,6 +19,8 @@ const (
 	Argon2id
 )
 
+const CurrentVersion = argon2.Version
+
 type Config struct {
 	Memory     uint32
 	Time       uint32
@@ -47,29 +49,13 @@ func GenerateHash(password []byte, config *Config) (*Argon2Hash, error) {
 		return nil, ErrInvalidParams
 	}
 
-	pepper := []byte(os.Getenv("SECRET_PEPPER"))
-
-	password = append(password, pepper...)
-
 	salt, err := GenerateSecureSalt(config.SaltLength)
 
 	if err != nil {
 		return nil, err
 	}
 
-	var hash []byte
-
-	if config.Type == Argon2id {
-		hash = argon2.IDKey(password, salt, config.Time, config.Memory, config.Threads, config.KeyLength)
-	} else if config.Type == Argon2i {
-		hash = argon2.Key(password, salt, config.Time, config.Memory, config.Threads, config.KeyLength)
-	}
-
-	return &Argon2Hash{
-		Salt:   salt,
-		Hash:   hash,
-		Config: config,
-	}, nil
+	return GenerateHashWithSalt(password, salt, config)
 }
 
 func GenerateHashWithSalt(password, salt []byte, config *Config) (*Argon2Hash, error) {
