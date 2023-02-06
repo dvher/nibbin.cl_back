@@ -202,7 +202,7 @@ func searchProducts(c *gin.Context) {
 		return
 	}
 
-	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;")
+	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;")
 
 	if err != nil {
 		log.Println("Error preparing statement", err)
@@ -233,7 +233,7 @@ func searchProducts(c *gin.Context) {
 	for rows.Next() {
 		var product models.Producto
 
-		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento); err != nil {
+		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento, &product.Stock, &product.Imagen); err != nil {
 			log.Println("Error scanning products", err)
 
 			c.JSON(http.StatusInternalServerError, gin.H{

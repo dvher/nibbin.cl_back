@@ -33,11 +33,11 @@ type SearchRequest struct {
 }
 
 type Producto struct {
-	ID          int    `json:"id" binding:"required"`
-	Nombre      string `json:"nombre" binding:"required"`
-	Descripcion string `json:"descripcion" binding:"required"`
-	Precio      int    `json:"precio" binding:"required"`
-	Descuento   int    `json:"descuento" binding:"required"`
-	Stock       int    `json:"stock" binding:"required"`
-	Imagen      string `json:"imagen" binding:"required"`
+	ID          int     `json:"id" binding:"required"`
+	Nombre      string  `json:"nombre" binding:"required"`
+	Descripcion string  `json:"descripcion" binding:"required"`
+	Precio      int     `json:"precio" binding:"required"`
+	Descuento   float32 `json:"descuento" binding:"required"`
+	Stock       int     `json:"stock" binding:"required"`
+	Imagen      string  `json:"imagen" binding:"required"`
 }

@@ -10,7 +10,8 @@ There must exist a .env file in the root of the directory with the following var
 * SMTP_HOST: The host of the SMTP server
 * SMTP_PORT: The port of the SMTP server
 * ADMIN_EMAIL: The email of the admin
-* SESSION_KEY: The key used to encrypt the session
+* SESSION_KEY: The key used to authenticate the session
+* SESSION_ENC: The encryption key used to encrypt the session
 * SECRET_PEPPER: The pepper used to hash the passwords
 
 This project assumes that you're using a MySQL database. If you're using a different database, you'll have to change the code in the `internal/database` package.

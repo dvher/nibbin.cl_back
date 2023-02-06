@@ -154,8 +154,8 @@ func isLogged(c *gin.Context) {
 	sess := sessions.Default(c)
 
 	if sess.Get("user") == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"message": "Unauthorized",
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Not logged",
 		})
 		return
 	}

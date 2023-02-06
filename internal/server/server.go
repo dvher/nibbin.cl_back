@@ -30,7 +30,7 @@ func New() *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	store := cookie.NewStore([]byte(os.Getenv("SESSION_KEY")))
+	store := cookie.NewStore([]byte(os.Getenv("SESSION_KEY")), []byte(os.Getenv("SESSION_ENC")))
 
 	store.Options(sessions.Options{
 		Path:     "/",
@@ -41,6 +41,8 @@ func New() *gin.Engine {
 	})
 
 	r.Use(sessions.Sessions("nibbinSession", store))
+
+	r.SetTrustedProxies(nil)
 
 	public := r.Group("/")
 
