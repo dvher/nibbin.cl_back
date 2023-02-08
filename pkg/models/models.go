@@ -40,4 +40,11 @@ type Producto struct {
 	Descuento   float32 `json:"descuento"   binding:"required"`
 	Stock       int     `json:"stock"       binding:"required"`
 	Imagen      string  `json:"imagen"      binding:"required"`
+	IsFavorite  bool    `json:"isfavorite"`
+}
+
+type Favorito struct {
+	ID         int `json:"id"`
+	IDUsuario  int `json:"idUsuario"`
+	IDProducto int `json:"idProducto" binding:"required"`
 }

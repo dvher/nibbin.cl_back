@@ -34,7 +34,7 @@ func New() *gin.Engine {
 
 	store.Options(sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 7,
+		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   false,
 		Domain:   "localhost",
@@ -53,6 +53,7 @@ func New() *gin.Engine {
 	public.POST("/login", login)
 	public.POST("/verify", verifyOTP)
 	public.POST("/register", register)
+	public.POST("/setfavorite", setFavorite)
 	public.DELETE("/logout", logout)
 
 	private := r.Group("/admin")
