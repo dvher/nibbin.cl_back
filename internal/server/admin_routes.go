@@ -219,3 +219,47 @@ func registerAdmin(c *gin.Context) {
 	})
 
 }
+
+func insertProduct(c *gin.Context) {
+	var data models.Producto
+
+	if err := c.BindJSON(&data); err != nil {
+		log.Println("Error binding json", err)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Error binding json",
+		})
+		return
+	}
+
+	stmt, err := db.DB.Prepare(
+		"INSERT INTO Producto (nombre, descripcion, precio, descuento, stock, imagen) VALUES (?, ?, ?, ?, ?, ?);",
+	)
+
+	if err != nil {
+		log.Println("Error preparing statement", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+		return
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(data.Nombre, data.Descripcion, data.Precio, data.Descuento, data.Stock, data.Imagen)
+
+	if err != nil {
+		log.Println("Error inserting product", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error inserting product",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Product inserted successfully",
+	})
+
+}

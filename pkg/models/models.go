@@ -5,7 +5,7 @@ type LoginRequest struct {
 }
 
 type OTPRequest struct {
-	OTP   string `json:"otp" binding:"required"`
+	OTP   string `json:"otp"   binding:"required"`
 	Email string `json:"email" binding:"required,email"`
 }
 
@@ -24,7 +24,7 @@ type LoginAdminRequest struct {
 }
 
 type RegisterAdminRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -33,11 +33,11 @@ type SearchRequest struct {
 }
 
 type Producto struct {
-	ID          int     `json:"id" binding:"required"`
-	Nombre      string  `json:"nombre" binding:"required"`
+	ID          int     `json:"id"`
+	Nombre      string  `json:"nombre"      binding:"required"`
 	Descripcion string  `json:"descripcion" binding:"required"`
-	Precio      int     `json:"precio" binding:"required"`
-	Descuento   float32 `json:"descuento" binding:"required"`
-	Stock       int     `json:"stock" binding:"required"`
-	Imagen      string  `json:"imagen" binding:"required"`
+	Precio      int     `json:"precio"      binding:"required"`
+	Descuento   float32 `json:"descuento"   binding:"required"`
+	Stock       int     `json:"stock"       binding:"required"`
+	Imagen      string  `json:"imagen"      binding:"required"`
 }

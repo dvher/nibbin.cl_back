@@ -202,7 +202,9 @@ func searchProducts(c *gin.Context) {
 		return
 	}
 
-	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;")
+	stmt, err := db.DB.Prepare(
+		"SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;",
+	)
 
 	if err != nil {
 		log.Println("Error preparing statement", err)
@@ -249,4 +251,55 @@ func searchProducts(c *gin.Context) {
 		"message":  "Products found",
 		"products": products,
 	})
+}
+
+func getProducts(c *gin.Context) {
+
+	var products []models.Producto
+
+	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto;")
+
+	if err != nil {
+		log.Println("Error preparing statement", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error preparing statement",
+		})
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+
+	if err != nil {
+		log.Println("Error querying products", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error querying products",
+		})
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var prod models.Producto
+
+		err = rows.Scan(&prod.ID, &prod.Nombre, &prod.Descripcion, &prod.Precio, &prod.Descuento, &prod.Stock, &prod.Imagen)
+
+		if err != nil {
+			log.Println("Error scanning products", err)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error scanning products",
+			})
+		}
+
+		products = append(products, prod)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Products retrieved",
+		"products": products,
+	})
+
 }
