@@ -53,7 +53,7 @@ func New() *gin.Engine {
 	public.POST("/login", login)
 	public.POST("/verify", verifyOTP)
 	public.POST("/register", register)
-	public.POST("/setfavorite", setFavorite)
+	public.PUT("/setfavorite", setFavorite)
 	public.DELETE("/logout", logout)
 
 	private := r.Group("/admin")
