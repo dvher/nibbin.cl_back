@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	csrf "github.com/utrack/gin-csrf"
 	gomail "gopkg.in/mail.v2"
 )
 
@@ -151,7 +152,16 @@ func validateEmail(email string) bool {
 }
 
 func isLogged(c *gin.Context) {
+
 	sess := sessions.Default(c)
+
+	token := csrf.GetToken(c)
+
+	sess.Set("X-CSRF-Token", token)
+
+	if err := sess.Save(); err != nil {
+		log.Println("Error saving session", err)
+	}
 
 	if sess.Get("user") == nil {
 		c.JSON(http.StatusOK, gin.H{

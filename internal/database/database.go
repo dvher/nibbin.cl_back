@@ -33,14 +33,14 @@ func connect() {
 	DB, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME))
 
 	if err != nil {
-		log.Fatal("Couldn't connect to database")
+		log.Fatal("Couldn't connect to database", err)
 	}
 
 	err = DB.Ping()
 
 	if err != nil {
 		DB.Close()
-		log.Fatal("Couldn't ping database")
+		log.Fatal("Couldn't ping database", err)
 	}
 
 }

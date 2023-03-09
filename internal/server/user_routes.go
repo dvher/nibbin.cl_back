@@ -127,7 +127,7 @@ func register(c *gin.Context) {
 	}
 
 	if data.Nombre == "" || data.Apellido == "" || data.Email == "" || data.User == "" || data.Direccion == "" ||
-		data.Telefono == "" {
+		data.Telefono == "" || data.Nacimiento == "" {
 		log.Println("Missing data")
 
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -146,7 +146,7 @@ func register(c *gin.Context) {
 	}
 
 	stmt, err := db.DB.Prepare(
-		"INSERT INTO Usuario(nombre, apellido, email, usuario, puntos, direccion, telefono) VALUES(?, ?, ?, ?, ?, ?, ?);",
+		"INSERT INTO Usuario(nombre, apellido, email, usuario, puntos, direccion, telefono, nacimiento) VALUES(?, ?, ?, ?, ?, ?, ?, ?);",
 	)
 
 	if err != nil {
@@ -160,7 +160,7 @@ func register(c *gin.Context) {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(data.Nombre, data.Apellido, data.Email, data.User, puntos, data.Direccion, data.Telefono)
+	_, err = stmt.Exec(data.Nombre, data.Apellido, data.Email, data.User, puntos, data.Direccion, data.Telefono, data.Nacimiento)
 
 	if err != nil {
 		log.Println("Error inserting user", err)
@@ -173,7 +173,14 @@ func register(c *gin.Context) {
 
 	sess.Set("user", data.User)
 	sess.Set("email", data.Email)
-	sess.Save()
+	if err := sess.Save(); err != nil {
+		log.Println("Error saving session", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Error saving session",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User created",

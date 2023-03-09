@@ -233,7 +233,7 @@ func insertProduct(c *gin.Context) {
 	}
 
 	stmt, err := db.DB.Prepare(
-		"INSERT INTO Producto (nombre, descripcion, precio, descuento, stock, imagen) VALUES (?, ?, ?, ?, ?, ?);",
+		"INSERT INTO Producto (nombre, descripcion, descuento, stock, imagen) VALUES (?, ?, ?, ?, ?, ?);",
 	)
 
 	if err != nil {
@@ -247,7 +247,7 @@ func insertProduct(c *gin.Context) {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(data.Nombre, data.Descripcion, data.Precio, data.Descuento, data.Stock, data.Imagen)
+	_, err = stmt.Exec(data.Nombre, data.Descripcion, data.Descuento, data.Stock, data.Imagen)
 
 	if err != nil {
 		log.Println("Error inserting product", err)

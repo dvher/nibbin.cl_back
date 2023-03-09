@@ -18,7 +18,7 @@ func TestGenerateHash(t *testing.T) {
 		return
 	}
 
-	got2, err := GenerateHash([]byte(password), config)
+	got2, err := GenerateHash(password, config)
 
 	if err != nil {
 		t.Error(err)
@@ -50,7 +50,7 @@ func TestGenerateHashWithSalt(t *testing.T) {
 		return
 	}
 
-	got2, err := GenerateHashWithSalt([]byte(password), salt, config)
+	got2, err := GenerateHashWithSalt(password, salt, config)
 
 	if err != nil {
 		t.Error(err)

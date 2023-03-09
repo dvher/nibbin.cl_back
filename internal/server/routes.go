@@ -203,7 +203,7 @@ func searchProducts(c *gin.Context) {
 	}
 
 	stmt, err := db.DB.Prepare(
-		"SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto WHERE nombre LIKE ? OR descripcion LIKE ?;",
+		"SELECT id, nombre, descripcion, precio, descuento, stock, imagen, favorito FROM DescProductos WHERE nombre LIKE ? OR descripcion LIKE ?;",
 	)
 
 	if err != nil {
@@ -230,27 +230,16 @@ func searchProducts(c *gin.Context) {
 
 	defer rows.Close()
 
-	var products []models.Producto
+	var products []models.DescProducto
 
 	for rows.Next() {
-		var product models.Producto
+		var product models.DescProducto
 
-		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento, &product.Stock, &product.Imagen); err != nil {
+		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento, &product.Stock, &product.Imagen, &product.IsFavorite); err != nil {
 			log.Println("Error scanning products", err)
 
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"message": "Error scanning products",
-			})
-			return
-		}
-
-		product.IsFavorite, err = isFavorite(product.ID)
-
-		if err != nil {
-			log.Println("Error checking if product is favorite", err)
-
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "Error checking if product is favorite",
 			})
 			return
 		}
@@ -266,9 +255,9 @@ func searchProducts(c *gin.Context) {
 
 func getProducts(c *gin.Context) {
 
-	var products []models.Producto
+	var products []models.DescProducto
 
-	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen FROM Producto;")
+	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen, favorito FROM DescProductos;")
 
 	if err != nil {
 		log.Println("Error preparing statement", err)
@@ -294,26 +283,15 @@ func getProducts(c *gin.Context) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var prod models.Producto
+		var prod models.DescProducto
 
-		err = rows.Scan(&prod.ID, &prod.Nombre, &prod.Descripcion, &prod.Precio, &prod.Descuento, &prod.Stock, &prod.Imagen)
+		err = rows.Scan(&prod.ID, &prod.Nombre, &prod.Descripcion, &prod.Precio, &prod.Descuento, &prod.Stock, &prod.Imagen, &prod.IsFavorite)
 
 		if err != nil {
 			log.Println("Error scanning products", err)
 
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"message": "Error scanning products",
-			})
-			return
-		}
-
-		prod.IsFavorite, err = isFavorite(prod.ID)
-
-		if err != nil {
-			log.Println("Error checking if product is favorite", err)
-
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "Error checking if product is favorite",
 			})
 			return
 		}
@@ -328,7 +306,7 @@ func getProducts(c *gin.Context) {
 
 }
 
-func setFavorite(c *gin.Context) {
+func toggleFavorite(c *gin.Context) {
 
 	sess := sessions.Default(c)
 	var data models.Favorito
@@ -377,7 +355,9 @@ func setFavorite(c *gin.Context) {
 
 	var id int
 
-	if err := stmt.QueryRow(user.(string)).Scan(&id); err != nil {
+	err = stmt.QueryRow(user.(string)).Scan(&id)
+
+	if err != nil {
 		log.Println("Error querying user", err)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -386,7 +366,9 @@ func setFavorite(c *gin.Context) {
 		return
 	}
 
-	stmt, err = db.DB.Prepare("INSERT INTO Favorito (idProducto, idUsuario) VALUES (?, ?);")
+	data.IDUsuario = id
+
+	stmt, err = db.DB.Prepare("SELECT EXISTS(SELECT * FROM Favorito WHERE idUsuario = ? AND idProducto = ?) AS existe;")
 
 	if err != nil {
 		log.Println("Error preparing statement", err)
@@ -399,36 +381,82 @@ func setFavorite(c *gin.Context) {
 
 	defer stmt.Close()
 
-	if _, err := stmt.Exec(data.IDProducto, id); err != nil {
-		log.Println("Error inserting favorite", err)
+	var exists bool
+
+	err = stmt.QueryRow(id, data.IDProducto).Scan(&exists)
+
+	if err != nil {
+		log.Println("Error querying favorite", err)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error inserting favorite",
+			"message": "Error querying favorite",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Favorite added",
-	})
+	if exists {
+		if err := unsetFavorite(data); err != nil {
+			log.Println("Error removing favorite", err)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error removing favorite",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Favorite removed",
+		})
+		return
+
+	} else {
+		if err := setFavorite(data); err != nil {
+			log.Println("Error adding favorite", err)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Error adding favorite",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Favorite added",
+		})
+
+	}
+
 }
 
-func isFavorite(id int) (bool, error) {
-	stmt, err := db.DB.Prepare("SELECT id FROM Favorito WHERE idProducto = ?;")
+func setFavorite(data models.Favorito) error {
+
+	stmt, err := db.DB.Prepare("INSERT INTO Favorito (idProducto, idUsuario) VALUES (?, ?);")
 
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	defer stmt.Close()
 
-	rws, err := stmt.Query(id)
-
-	if err != nil {
-		return false, err
+	if _, err := stmt.Exec(data.IDProducto, data.IDUsuario); err != nil {
+		return err
 	}
 
-	defer rws.Close()
+	return nil
+}
 
-	return rws.Next(), nil
+func unsetFavorite(data models.Favorito) error {
+
+	stmt, err := db.DB.Prepare("DELETE FROM Favorito WHERE idProducto = ? AND idUsuario = ?;")
+
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	if _, err := stmt.Exec(data.IDProducto, data.IDUsuario); err != nil {
+		return err
+	}
+
+	return nil
 }

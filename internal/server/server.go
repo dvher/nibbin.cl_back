@@ -2,6 +2,7 @@ package server
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	csrf "github.com/utrack/gin-csrf"
 )
 
 /*
@@ -24,7 +26,7 @@ func New() *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "http://nibbin.cl:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -42,6 +44,35 @@ func New() *gin.Engine {
 
 	r.Use(sessions.Sessions("nibbinSession", store))
 
+	r.Use(csrf.Middleware(csrf.Options{
+		Secret: os.Getenv("CSRF_SECRET"),
+		ErrorFunc: func(c *gin.Context) {
+
+			log.Println("CSRF token mismatch")
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "CSRF token mismatch",
+			})
+			c.Abort()
+		},
+		TokenGetter: func(c *gin.Context) string {
+
+			sess := sessions.Default(c)
+
+			token := sess.Get("X-CSRF-Token")
+
+			if token == nil {
+				token = csrf.GetToken(c)
+				sess.Set("X-CSRF-Token", token)
+				if err := sess.Save(); err != nil {
+					log.Println("Error saving session", err)
+				}
+			}
+
+			return token.(string)
+		},
+	}))
+
 	r.SetTrustedProxies(nil)
 
 	public := r.Group("/")
@@ -53,7 +84,7 @@ func New() *gin.Engine {
 	public.POST("/login", login)
 	public.POST("/verify", verifyOTP)
 	public.POST("/register", register)
-	public.PUT("/setfavorite", setFavorite)
+	public.PUT("/togglefavorite", toggleFavorite)
 	public.DELETE("/logout", logout)
 
 	private := r.Group("/admin")

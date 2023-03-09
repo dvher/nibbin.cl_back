@@ -10,12 +10,13 @@ type OTPRequest struct {
 }
 
 type RegisterRequest struct {
-	Nombre    string `json:"nombre"    binding:"required"`
-	Apellido  string `json:"apellido"  binding:"required"`
-	Email     string `json:"email"     binding:"required,email"`
-	User      string `json:"user"      binding:"required"`
-	Direccion string `json:"direccion" binding:"required"`
-	Telefono  string `json:"telefono"  binding:"required"`
+	Nombre     string `json:"nombre"    binding:"required"`
+	Apellido   string `json:"apellido"  binding:"required"`
+	Email      string `json:"email"     binding:"required,email"`
+	User       string `json:"user"      binding:"required"`
+	Direccion  string `json:"direccion" binding:"required"`
+	Telefono   string `json:"telefono"  binding:"required"`
+	Nacimiento string `json:"nacimiento"  binding:"required"`
 }
 
 type LoginAdminRequest struct {
@@ -33,6 +34,16 @@ type SearchRequest struct {
 }
 
 type Producto struct {
+	ID          int     `json:"id"`
+	Nombre      string  `json:"nombre"      binding:"required"`
+	Descripcion string  `json:"descripcion" binding:"required"`
+	Descuento   float32 `json:"descuento"   binding:"required"`
+	Stock       int     `json:"stock"       binding:"required"`
+	Imagen      string  `json:"imagen"      binding:"required"`
+	IsFavorite  bool    `json:"isfavorite"`
+}
+
+type DescProducto struct {
 	ID          int     `json:"id"`
 	Nombre      string  `json:"nombre"      binding:"required"`
 	Descripcion string  `json:"descripcion" binding:"required"`
