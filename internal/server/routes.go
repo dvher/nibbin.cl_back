@@ -192,6 +192,7 @@ func verifyOTP(c *gin.Context) {
 func searchProducts(c *gin.Context) {
 
 	search := c.Query("q")
+	userID := getUserID(c)
 
 	if search == "" {
 		log.Println("Search not provided")
@@ -203,7 +204,7 @@ func searchProducts(c *gin.Context) {
 	}
 
 	stmt, err := db.DB.Prepare(
-		"SELECT id, nombre, descripcion, precio, descuento, stock, imagen, favorito FROM DescProductos WHERE nombre LIKE ? OR descripcion LIKE ?;",
+		"CALL SearchProductos(?, ?);",
 	)
 
 	if err != nil {
@@ -217,7 +218,7 @@ func searchProducts(c *gin.Context) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query("%"+search+"%", "%"+search+"%")
+	rows, err := stmt.Query(userID, search)
 
 	if err != nil {
 		log.Println("Error querying products", err)
@@ -235,7 +236,7 @@ func searchProducts(c *gin.Context) {
 	for rows.Next() {
 		var product models.DescProducto
 
-		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Precio, &product.Descuento, &product.Stock, &product.Imagen, &product.IsFavorite); err != nil {
+		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Descuento, &product.Stock, &product.Imagen, &product.Precio, &product.IsFavorite); err != nil {
 			log.Println("Error scanning products", err)
 
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -255,9 +256,11 @@ func searchProducts(c *gin.Context) {
 
 func getProducts(c *gin.Context) {
 
+	userID := getUserID(c)
+
 	var products []models.DescProducto
 
-	stmt, err := db.DB.Prepare("SELECT id, nombre, descripcion, precio, descuento, stock, imagen, favorito FROM DescProductos;")
+	stmt, err := db.DB.Prepare("CALL DescProductos(?);")
 
 	if err != nil {
 		log.Println("Error preparing statement", err)
@@ -269,7 +272,7 @@ func getProducts(c *gin.Context) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.Query(userID)
 
 	if err != nil {
 		log.Println("Error querying products", err)
@@ -459,4 +462,33 @@ func unsetFavorite(data models.Favorito) error {
 	}
 
 	return nil
+}
+
+func getUserID(c *gin.Context) int {
+
+	sess := sessions.Default(c)
+
+	useriface := sess.Get("user")
+
+	if _, ok := useriface.(string); !ok {
+		return 0
+	}
+
+	stmt, err := db.DB.Prepare("SELECT id FROM Usuario WHERE usuario = ?;")
+
+	if err != nil {
+		return 0
+	}
+
+	defer stmt.Close()
+
+	var id int
+
+	err = stmt.QueryRow(useriface.(string)).Scan(&id)
+
+	if err != nil {
+		return 0
+	}
+
+	return id
 }
