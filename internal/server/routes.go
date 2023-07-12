@@ -236,7 +236,7 @@ func searchProducts(c *gin.Context) {
 	for rows.Next() {
 		var product models.DescProducto
 
-		if err := rows.Scan(&product.ID, &product.Nombre, &product.Descripcion, &product.Descuento, &product.Stock, &product.Imagen, &product.Precio, &product.IsFavorite); err != nil {
+		if err := rows.Scan(&product.ID, &product.Nombre, &product.Marca, &product.Descripcion, &product.Descuento, &product.Stock, &product.Imagen, &product.Precio, &product.IsFavorite); err != nil {
 			log.Println("Error scanning products", err)
 
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -288,7 +288,17 @@ func getProducts(c *gin.Context) {
 	for rows.Next() {
 		var prod models.DescProducto
 
-		err = rows.Scan(&prod.ID, &prod.Nombre, &prod.Descripcion, &prod.Precio, &prod.Descuento, &prod.Stock, &prod.Imagen, &prod.IsFavorite)
+		err = rows.Scan(
+			&prod.ID,
+			&prod.Nombre,
+			&prod.Marca,
+			&prod.Descripcion,
+			&prod.Precio,
+			&prod.Descuento,
+			&prod.Stock,
+			&prod.Imagen,
+			&prod.IsFavorite,
+		)
 
 		if err != nil {
 			log.Println("Error scanning products", err)
@@ -305,6 +315,25 @@ func getProducts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Products retrieved",
 		"products": products,
+	})
+
+}
+
+func getProduct(c *gin.Context) {
+
+	id := c.Param("id")
+
+	if id == "" {
+		log.Println("ID not provided")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "ID not provided",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Product retrieved",
 	})
 
 }

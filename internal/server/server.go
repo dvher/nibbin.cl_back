@@ -79,8 +79,9 @@ func New() *gin.Engine {
 
 	public.GET("/", ping)
 	public.GET("/islogged", isLogged)
-	public.GET("/searchproducts", searchProducts)
-	public.GET("/getproducts", getProducts)
+	public.GET("/product/search", searchProducts)
+	public.GET("/product", getProducts)
+	public.GET("/product/:id", getProduct)
 	public.POST("/login", login)
 	public.POST("/verify", verifyOTP)
 	public.POST("/register", register)
@@ -91,7 +92,7 @@ func New() *gin.Engine {
 
 	private.Use(middleware.Auth())
 
-	private.POST("/insertproduct", insertProduct)
+	private.POST("/product", insertProduct)
 	private.POST("/login", loginAdmin)
 	private.POST("/register", registerAdmin)
 
