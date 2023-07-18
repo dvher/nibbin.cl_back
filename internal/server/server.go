@@ -79,9 +79,9 @@ func New() *gin.Engine {
 
 	public.GET("/", ping)
 	public.GET("/islogged", isLogged)
-	public.GET("/product/search", searchProducts)
 	public.GET("/product", getProducts)
 	public.GET("/product/:id", getProduct)
+	public.GET("/search/product/:query", searchProducts)
 	public.POST("/login", login)
 	public.POST("/verify", verifyOTP)
 	public.POST("/register", register)

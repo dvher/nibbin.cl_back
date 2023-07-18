@@ -191,7 +191,7 @@ func verifyOTP(c *gin.Context) {
 
 func searchProducts(c *gin.Context) {
 
-	search := c.Query("q")
+	search := c.Param("query")
 	userID := getUserID(c)
 
 	if search == "" {
